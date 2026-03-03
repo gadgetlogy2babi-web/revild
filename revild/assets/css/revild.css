@@ -1,67 +1,126 @@
 .revild-review-box {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
   background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
+/* --- ヘッダー（商品名・メタ・評価） --- */
 .revild-review-header {
-  margin-bottom: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .revild-product-name {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: 1.15em;
+  font-weight: 700;
   margin-bottom: 4px;
 }
 
 .revild-meta {
-  color: #666;
-  font-size: 0.9em;
-  margin-bottom: 8px;
+  font-size: 0.85em;
+  color: #888;
+  margin-bottom: 10px;
 }
 
 .revild-rating {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: 8px;
 }
 
 .revild-stars {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  line-height: 1;
+  display: flex;
+  gap: 2px;
 }
 
 .revild-star {
-  display: inline-block;
-  vertical-align: middle;
+  width: 20px;
+  height: 20px;
+}
+
+.revild-star-full {
+  color: #f5a623;
+}
+
+.revild-star-half {
+  color: #f5a623;
+}
+
+.revild-star-empty {
+  color: #ddd;
 }
 
 .revild-rating-value {
+  font-size: 0.95em;
   font-weight: 700;
-  color: #d56e0c;
+  color: #f5a623;
 }
 
+/* --- Pros / Cons 横並び --- */
 .revild-pros-cons {
   display: flex;
-  gap: 16px;
+  gap: 0;
 }
 
-.revild-pros,
+.revild-pros {
+  flex: 1;
+  padding-right: 16px;
+  border-right: 1px solid #f0f0f0;
+}
+
 .revild-cons {
   flex: 1;
+  padding-left: 16px;
 }
 
 .revild-pros-title,
 .revild-cons-title {
-  font-size: 1em;
-  font-weight: bold;
-  margin: 0 0 8px;
+  font-size: 0.85em;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.revild-pros-title {
+  color: #4caf50;
+}
+
+.revild-cons-title {
+  color: #e57373;
+}
+
+.revild-pros-title::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4caf50;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+  background-size: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.revild-cons-title::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e57373;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+  background-size: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
 }
 
 .revild-pros ul,
@@ -73,17 +132,60 @@
 
 .revild-pros li,
 .revild-cons li {
-  padding: 6px 0;
-  border-bottom: 1px solid #f0f0f0;
+  position: relative;
+  padding: 5px 0 5px 20px;
+  font-size: 0.9em;
+  line-height: 1.6;
 }
 
-.revild-pros li:last-child,
-.revild-cons li:last-child {
-  border-bottom: none;
+.revild-pros li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c8e6c9;
 }
 
-@media (max-width: 768px) {
+.revild-cons li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffcdd2;
+}
+
+/* --- レスポンシブ --- */
+@media (max-width: 600px) {
+  .revild-review-box {
+    padding: 16px;
+  }
+
   .revild-pros-cons {
     flex-direction: column;
+    gap: 16px;
   }
+
+  .revild-pros {
+    padding-right: 0;
+    border-right: none;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .revild-cons {
+    padding-left: 0;
+  }
+}
+
+/* --- パターン: 評価のみ（compact） --- */
+.revild-review-box--compact .revild-review-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }

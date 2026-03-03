@@ -13,38 +13,49 @@ class Revild_Meta_Box {
     public const META_PROS   = 'review_pros';
     public const META_CONS   = 'review_cons';
 
-    // 表示トグル
-    public const META_SHOW_NAME   = 'revild_show_name';
-    public const META_SHOW_BRAND  = 'revild_show_brand';
-    public const META_SHOW_MODEL  = 'revild_show_model';
-    public const META_SHOW_RATING = 'revild_show_rating';
-    public const META_SHOW_PROS   = 'revild_show_pros';
-    public const META_SHOW_CONS   = 'revild_show_cons';
-
-    // 記事単位の JSON-LD 停止トグル
+    // 記事個別の表示上書き
+    public const META_HAS_OVERRIDE   = 'revild_has_override';
+    public const META_SHOW_BOX       = 'revild_show_review_box';
+    public const META_SHOW_NAME      = 'revild_show_name';
+    public const META_SHOW_META      = 'revild_show_meta';
+    public const META_SHOW_RATING    = 'revild_show_rating';
+    public const META_SHOW_PROS      = 'revild_show_pros';
+    public const META_SHOW_CONS      = 'revild_show_cons';
     public const META_DISABLE_JSONLD = 'revild_disable_jsonld';
 
-    /** デフォルト表示設定 */
-    public const SHOW_DEFAULTS = [
-        'revild_show_name'   => '0',
-        'revild_show_brand'  => '0',
-        'revild_show_model'  => '0',
-        'revild_show_rating' => '1',
-        'revild_show_pros'   => '1',
-        'revild_show_cons'   => '1',
+    /** 表示トグルのメタキー → グローバル設定キー の対応 */
+    private const TOGGLE_MAP = [
+        'revild_show_review_box' => 'show_review_box',
+        'revild_show_name'       => 'show_product_name',
+        'revild_show_meta'       => 'show_meta',
+        'revild_show_rating'     => 'show_rating',
+        'revild_show_pros'       => 'show_pros',
+        'revild_show_cons'       => 'show_cons',
     ];
 
     public function __construct() {
         add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ] );
         add_action( 'save_post', [ $this, 'save_post_meta' ], 10, 2 );
+        add_action( 'wp_ajax_revild_reset_override', [ $this, 'ajax_reset_override' ] );
     }
 
+    /**
+     * 記事個別 or グローバルの表示設定を返す
+     */
     public static function is_shown( int $post_id, string $meta_key ): bool {
-        $value = get_post_meta( $post_id, $meta_key, true );
-        if ( $value === '' ) {
-            return ( self::SHOW_DEFAULTS[ $meta_key ] ?? '0' ) === '1';
+        if ( self::has_override( $post_id ) ) {
+            return get_post_meta( $post_id, $meta_key, true ) === '1';
         }
-        return $value === '1';
+
+        $global_key = self::TOGGLE_MAP[ $meta_key ] ?? null;
+        if ( $global_key === null ) {
+            return false;
+        }
+        return (bool) Revild_Settings::get( $global_key );
+    }
+
+    public static function has_override( int $post_id ): bool {
+        return get_post_meta( $post_id, self::META_HAS_OVERRIDE, true ) === '1';
     }
 
     public static function is_jsonld_disabled( int $post_id ): bool {
@@ -74,6 +85,7 @@ class Revild_Meta_Box {
         $pros   = get_post_meta( $post->ID, self::META_PROS, true );
         $cons   = get_post_meta( $post->ID, self::META_CONS, true );
 
+        $has_override   = self::has_override( $post->ID );
         $disable_jsonld = self::is_jsonld_disabled( $post->ID );
         ?>
 
@@ -124,13 +136,12 @@ class Revild_Meta_Box {
         <hr style="margin:10px 0;">
 
         <p><strong><?php esc_html_e( '表示設定', 'revild' ); ?></strong></p>
-        <p><small><?php esc_html_e( 'レビューボックスに表示する項目を選択してください。', 'revild' ); ?></small></p>
 
         <?php
         $toggles = [
+            self::META_SHOW_BOX    => __( 'レビューボックスを表示', 'revild' ),
             self::META_SHOW_NAME   => __( '商品名', 'revild' ),
-            self::META_SHOW_BRAND  => __( 'ブランド名', 'revild' ),
-            self::META_SHOW_MODEL  => __( '型番・モデル', 'revild' ),
+            self::META_SHOW_META   => __( 'ブランド名 / 型番', 'revild' ),
             self::META_SHOW_RATING => __( '評価（星）', 'revild' ),
             self::META_SHOW_PROS   => __( '良い点', 'revild' ),
             self::META_SHOW_CONS   => __( '気になる点', 'revild' ),
@@ -147,8 +158,29 @@ class Revild_Meta_Box {
         <?php endforeach; ?>
 
         <p style="background:#f0f6fc;padding:6px 8px;border-radius:4px;margin:8px 0 0;">
+            <small><?php esc_html_e( 'ℹ この記事の表示設定はグローバル設定を上書きします。グローバル設定は「設定 → ReviLD」から変更できます。', 'revild' ); ?></small>
+        </p>
+        <p style="background:#f0f6fc;padding:6px 8px;border-radius:4px;margin:4px 0 0;">
             <small><?php esc_html_e( 'ℹ レビューボックスで非表示にした項目も、JSON-LDには出力されます。Googleのガイドラインでは、JSON-LDの内容がページ上のどこかに表示されている必要があります。記事本文に該当する情報が含まれていることを確認してください。', 'revild' ); ?></small>
         </p>
+
+        <?php if ( $has_override ) : ?>
+        <p style="margin:8px 0 0;">
+            <button type="button" class="button button-link-delete" id="revild-reset-override" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
+                <?php esc_html_e( 'グローバル設定に戻す', 'revild' ); ?>
+            </button>
+        </p>
+        <script>
+            document.getElementById('revild-reset-override')?.addEventListener('click', function() {
+                if (!confirm('<?php echo esc_js( __( 'この記事の個別表示設定を削除し、グローバル設定に戻しますか？', 'revild' ) ); ?>')) return;
+                var fd = new FormData();
+                fd.append('action', 'revild_reset_override');
+                fd.append('post_id', this.dataset.postId);
+                fd.append('_wpnonce', '<?php echo esc_js( wp_create_nonce( 'revild_reset_override' ) ); ?>');
+                fetch(ajaxurl, { method: 'POST', body: fd }).then(function() { location.reload(); });
+            });
+        </script>
+        <?php endif; ?>
 
         <hr style="margin:10px 0;">
 
@@ -209,23 +241,35 @@ class Revild_Meta_Box {
             ? update_post_meta( $post_id, self::META_RATING, (string) $review_rating )
             : delete_post_meta( $post_id, self::META_RATING );
 
-        // 表示トグル
-        $toggle_keys = [
-            self::META_SHOW_NAME,
-            self::META_SHOW_BRAND,
-            self::META_SHOW_MODEL,
-            self::META_SHOW_RATING,
-            self::META_SHOW_PROS,
-            self::META_SHOW_CONS,
-        ];
+        // 表示トグル（個別上書きとして保存）
+        $toggle_keys = array_keys( self::TOGGLE_MAP );
 
         foreach ( $toggle_keys as $key ) {
             $value = isset( $_POST[ $key ] ) ? sanitize_text_field( $_POST[ $key ] ) : '0';
             update_post_meta( $post_id, $key, $value === '1' ? '1' : '0' );
         }
 
+        update_post_meta( $post_id, self::META_HAS_OVERRIDE, '1' );
+
         // JSON-LD 停止トグル
         $disable = isset( $_POST['revild_disable_jsonld'] ) ? sanitize_text_field( $_POST['revild_disable_jsonld'] ) : '0';
         update_post_meta( $post_id, self::META_DISABLE_JSONLD, $disable === '1' ? '1' : '0' );
+    }
+
+    public function ajax_reset_override(): void {
+        check_ajax_referer( 'revild_reset_override' );
+
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
+        if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+            wp_send_json_error();
+        }
+
+        delete_post_meta( $post_id, self::META_HAS_OVERRIDE );
+
+        foreach ( array_keys( self::TOGGLE_MAP ) as $key ) {
+            delete_post_meta( $post_id, $key );
+        }
+
+        wp_send_json_success();
     }
 }

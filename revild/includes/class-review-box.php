@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Revild_Review_Box {
 
     public function __construct() {
-        add_filter( 'the_content', [ $this, 'prepend_review_box' ], 1000 );
+        add_filter( 'the_content', [ $this, 'insert_review_box' ], 1000 );
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_style' ] );
     }
 
@@ -32,7 +32,7 @@ class Revild_Review_Box {
         );
     }
 
-    public function prepend_review_box( string $content ): string {
+    public function insert_review_box( string $content ): string {
         if ( is_admin() || is_feed() || ! is_singular() ) {
             return $content;
         }
@@ -46,8 +46,14 @@ class Revild_Review_Box {
         }
 
         $post_id = get_queried_object_id();
-        $name    = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
-        $rating  = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
+
+        // レビューボックス表示トグル
+        if ( ! Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_BOX ) ) {
+            return $content;
+        }
+
+        $name   = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
+        $rating = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
 
         if ( $name === '' || $rating === '' ) {
             return $content;
@@ -67,7 +73,7 @@ class Revild_Review_Box {
         $cons_lines = self::count_lines( $cons_text );
         $notes_ok   = ( $pros_lines + $cons_lines ) >= 2;
 
-        // --- 表示する部品を組み立て ---
+        // --- 部品を組み立て ---
         $header_parts = [];
         $show_pros = false;
         $show_cons = false;
@@ -77,67 +83,88 @@ class Revild_Review_Box {
             $header_parts[] = '<div class="revild-product-name">' . esc_html( $name ) . '</div>';
         }
 
-        // ブランド名 / 型番（まとめて .revild-meta に）
-        $meta_pieces = [];
-        if ( $brand !== '' && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_BRAND ) ) {
-            $meta_pieces[] = esc_html( $brand );
-        }
-        if ( $model !== '' && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_MODEL ) ) {
-            $meta_pieces[] = esc_html( $model );
-        }
-        if ( ! empty( $meta_pieces ) ) {
-            $header_parts[] = '<div class="revild-meta">' . implode( ' / ', $meta_pieces ) . '</div>';
+        // ブランド / 型番
+        if ( Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_META ) ) {
+            $meta_pieces = [];
+            if ( $brand !== '' ) {
+                $meta_pieces[] = esc_html( $brand );
+            }
+            if ( $model !== '' ) {
+                $meta_pieces[] = esc_html( $model );
+            }
+            if ( ! empty( $meta_pieces ) ) {
+                $header_parts[] = '<div class="revild-meta">' . implode( ' / ', $meta_pieces ) . '</div>';
+            }
         }
 
         // 評価（星）
         if ( Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_RATING ) ) {
             $display_value = rtrim( rtrim( (string) $rating_f, '0' ), '.' );
             $header_parts[] = '<div class="revild-rating">'
-                . '<span class="revild-stars" aria-hidden="true">' . $this->rating_to_stars( $rating_f ) . '</span>'
+                . '<span class="revild-stars">' . self::rating_to_stars( $rating_f ) . '</span>'
                 . '<span class="revild-rating-value">' . esc_html( $display_value ) . ' / 5.0</span>'
                 . '</div>';
         }
 
-        // 良い点（2項目ルール適用）
-        $pros_html = '';
+        // 良い点
         if ( $notes_ok && $pros_lines > 0 && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_PROS ) ) {
-            $pros_html = '<div class="revild-pros">'
-                . '<h4 class="revild-pros-title">' . esc_html__( '良い点', 'revild' ) . '</h4>'
-                . '<ul>' . self::lines_to_li( $pros_text ) . '</ul>'
-                . '</div>';
             $show_pros = true;
         }
 
-        // 気になる点（2項目ルール適用）
-        $cons_html = '';
+        // 気になる点
         if ( $notes_ok && $cons_lines > 0 && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_CONS ) ) {
-            $cons_html = '<div class="revild-cons">'
-                . '<h4 class="revild-cons-title">' . esc_html__( '気になる点', 'revild' ) . '</h4>'
-                . '<ul>' . self::lines_to_li( $cons_text ) . '</ul>'
-                . '</div>';
             $show_cons = true;
         }
 
-        // 表示項目が0件ならボックス自体を出力しない
+        // 表示項目が0件なら出力しない
         if ( empty( $header_parts ) && ! $show_pros && ! $show_cons ) {
             return $content;
         }
 
-        // --- HTML 組み立て ---
-        $html = '<div class="revild-review-box">';
+        // --- compact 判定 ---
+        $has_pros_cons = $show_pros || $show_cons;
+        $box_class     = 'revild-review-box';
+        if ( ! $has_pros_cons ) {
+            $box_class .= ' revild-review-box--compact';
+        }
+
+        $html = '<div class="' . esc_attr( $box_class ) . '">';
 
         if ( ! empty( $header_parts ) ) {
             $html .= '<div class="revild-review-header">' . implode( '', $header_parts ) . '</div>';
         }
 
-        if ( $show_pros || $show_cons ) {
-            $html .= '<div class="revild-pros-cons">' . $pros_html . $cons_html . '</div>';
+        if ( $has_pros_cons ) {
+            $html .= '<div class="revild-pros-cons">';
+
+            if ( $show_pros ) {
+                $html .= '<div class="revild-pros">';
+                $html .= '<div class="revild-pros-title">' . esc_html__( '良い点', 'revild' ) . '</div>';
+                $html .= '<ul>' . self::lines_to_li( $pros_text ) . '</ul>';
+                $html .= '</div>';
+            }
+
+            if ( $show_cons ) {
+                $html .= '<div class="revild-cons">';
+                $html .= '<div class="revild-cons-title">' . esc_html__( '気になる点', 'revild' ) . '</div>';
+                $html .= '<ul>' . self::lines_to_li( $cons_text ) . '</ul>';
+                $html .= '</div>';
+            }
+
+            $html .= '</div>';
         }
 
         $html .= '</div>';
 
+        // 挿入位置
+        $position = Revild_Settings::get( 'insert_position' );
+        if ( $position === 'after' ) {
+            return $content . $html;
+        }
         return $html . $content;
     }
+
+    // ========== ユーティリティ ==========
 
     public static function count_lines( string $text ): int {
         $text = trim( $text );
@@ -166,44 +193,32 @@ class Revild_Review_Box {
         return $out;
     }
 
-    private function rating_to_stars( float $rating ): string {
+    private static function rating_to_stars( float $rating ): string {
         $rating = max( 0.0, min( 5.0, $rating ) );
+        $full   = (int) floor( $rating );
+        $half   = ( abs( $rating - $full - 0.5 ) < 0.00001 ) ? 1 : 0;
+        $blank  = 5 - $full - $half;
 
-        $full  = (int) floor( $rating );
-        $half  = ( abs( $rating - $full - 0.5 ) < 0.00001 ) ? 1 : 0;
-        $blank = 5 - $full - $half;
+        $path = 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z';
+        $html = '';
 
-        $html = str_repeat( $this->star_svg( '#ffb500', 'full' ), $full );
-
-        if ( $half ) {
-            $html .= $this->star_svg( '#ffb500', 'half' );
+        for ( $i = 0; $i < $full; $i++ ) {
+            $html .= '<svg class="revild-star revild-star-full" viewBox="0 0 24 24"><path fill="currentColor" d="' . $path . '"/></svg>';
         }
 
-        if ( $blank > 0 ) {
-            $html .= str_repeat( $this->star_svg( '#cccccc', 'full' ), $blank );
+        if ( $half ) {
+            $grad_id = 'revild-half-' . wp_unique_id();
+            $html .= '<svg class="revild-star revild-star-half" viewBox="0 0 24 24">'
+                . '<defs><linearGradient id="' . esc_attr( $grad_id ) . '">'
+                . '<stop offset="50%" stop-color="#f5a623"/><stop offset="50%" stop-color="#ddd"/>'
+                . '</linearGradient></defs>'
+                . '<path fill="url(#' . esc_attr( $grad_id ) . ')" d="' . $path . '"/></svg>';
+        }
+
+        for ( $i = 0; $i < $blank; $i++ ) {
+            $html .= '<svg class="revild-star revild-star-empty" viewBox="0 0 24 24"><path fill="currentColor" d="' . $path . '"/></svg>';
         }
 
         return $html;
-    }
-
-    private function star_svg( string $color, string $mode = 'full' ): string {
-        $grad_id = function_exists( 'wp_unique_id' ) ? wp_unique_id( 'revild-grad-' ) : ( 'revild-grad-' . wp_rand() );
-
-        $defs = '';
-        $fill = $color;
-
-        if ( $mode === 'half' ) {
-            $defs = '<defs><linearGradient id="' . esc_attr( $grad_id ) . '">'
-                  . '<stop offset="0%" stop-color="' . esc_attr( $color ) . '"/>'
-                  . '<stop offset="50%" stop-color="' . esc_attr( $color ) . '"/>'
-                  . '<stop offset="50%" stop-color="#cccccc"/>'
-                  . '</linearGradient></defs>';
-            $fill = 'url(#' . $grad_id . ')';
-        }
-
-        return '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" class="revild-star">'
-             . $defs
-             . '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="' . esc_attr( $fill ) . '"/>'
-             . '</svg>';
     }
 }

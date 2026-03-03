@@ -42,12 +42,13 @@ class Revild_Conflict_Detector {
         return $this->conflicts;
     }
 
-    /**
-     * 警告のみ表示（自動停止はしない）。
-     * 記事単位の停止は Meta Box の「JSON-LD 出力を停止する」トグルで制御。
-     */
     public function register_admin_notice(): void {
         if ( ! $this->has_conflict() ) {
+            return;
+        }
+
+        // グローバル設定で警告OFFならスキップ
+        if ( ! Revild_Settings::get( 'show_conflict_warning' ) ) {
             return;
         }
 
