@@ -8,7 +8,28 @@ class Revild_Review_Box {
 
     public function __construct() {
         add_filter( 'the_content', [ $this, 'prepend_review_box' ], 1000 );
-        add_action( 'wp_head', [ $this, 'output_style' ] );
+        add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_style' ] );
+    }
+
+    public function enqueue_style(): void {
+        if ( ! is_singular() ) {
+            return;
+        }
+
+        $post_id = get_queried_object_id();
+        $name    = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
+        $rating  = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
+
+        if ( $name === '' || $rating === '' ) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'revild',
+            REVILD_PLUGIN_URL . 'assets/css/revild.css',
+            [],
+            REVILD_VERSION
+        );
     }
 
     public function prepend_review_box( string $content ): string {
@@ -37,6 +58,8 @@ class Revild_Review_Box {
             return $content;
         }
 
+        $brand     = get_post_meta( $post_id, Revild_Meta_Box::META_BRAND, true );
+        $model     = get_post_meta( $post_id, Revild_Meta_Box::META_MODEL, true );
         $pros_text = get_post_meta( $post_id, Revild_Meta_Box::META_PROS, true );
         $cons_text = get_post_meta( $post_id, Revild_Meta_Box::META_CONS, true );
 
@@ -44,82 +67,76 @@ class Revild_Review_Box {
         $cons_lines = self::count_lines( $cons_text );
         $notes_ok   = ( $pros_lines + $cons_lines ) >= 2;
 
-        $html = '<div class="revild-review-box">';
+        // --- 表示する部品を組み立て ---
+        $header_parts = [];
+        $show_pros = false;
+        $show_cons = false;
 
         // 商品名
         if ( Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_NAME ) ) {
-            $html .= '<div class="revild-product-name">' . esc_html( $name ) . '</div>';
+            $header_parts[] = '<div class="revild-product-name">' . esc_html( $name ) . '</div>';
         }
 
-        // ブランド名
-        $brand = get_post_meta( $post_id, Revild_Meta_Box::META_BRAND, true );
+        // ブランド名 / 型番（まとめて .revild-meta に）
+        $meta_pieces = [];
         if ( $brand !== '' && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_BRAND ) ) {
-            $html .= '<div class="revild-brand">' . esc_html( $brand ) . '</div>';
+            $meta_pieces[] = esc_html( $brand );
         }
-
-        // 型番・モデル
-        $model = get_post_meta( $post_id, Revild_Meta_Box::META_MODEL, true );
         if ( $model !== '' && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_MODEL ) ) {
-            $html .= '<div class="revild-model">' . esc_html( $model ) . '</div>';
+            $meta_pieces[] = esc_html( $model );
+        }
+        if ( ! empty( $meta_pieces ) ) {
+            $header_parts[] = '<div class="revild-meta">' . implode( ' / ', $meta_pieces ) . '</div>';
         }
 
         // 評価（星）
         if ( Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_RATING ) ) {
             $display_value = rtrim( rtrim( (string) $rating_f, '0' ), '.' );
-            $html .= '<div class="revild-rating">';
-            $html .= '<span class="revild-stars" aria-hidden="true">' . $this->rating_to_stars( $rating_f ) . '</span>';
-            $html .= '<span class="revild-rating-value">' . esc_html( $display_value ) . ' / 5.0</span>';
-            $html .= '</div>';
+            $header_parts[] = '<div class="revild-rating">'
+                . '<span class="revild-stars" aria-hidden="true">' . $this->rating_to_stars( $rating_f ) . '</span>'
+                . '<span class="revild-rating-value">' . esc_html( $display_value ) . ' / 5.0</span>'
+                . '</div>';
         }
 
         // 良い点（2項目ルール適用）
+        $pros_html = '';
         if ( $notes_ok && $pros_lines > 0 && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_PROS ) ) {
-            $html .= '<div class="revild-pros">';
-            $html .= '<h4>' . esc_html__( '良い点', 'revild' ) . '</h4>';
-            $html .= '<ul>' . self::lines_to_li( $pros_text ) . '</ul>';
-            $html .= '</div>';
+            $pros_html = '<div class="revild-pros">'
+                . '<h4 class="revild-pros-title">' . esc_html__( '良い点', 'revild' ) . '</h4>'
+                . '<ul>' . self::lines_to_li( $pros_text ) . '</ul>'
+                . '</div>';
+            $show_pros = true;
         }
 
         // 気になる点（2項目ルール適用）
+        $cons_html = '';
         if ( $notes_ok && $cons_lines > 0 && Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_CONS ) ) {
-            $html .= '<div class="revild-cons">';
-            $html .= '<h4>' . esc_html__( '気になる点', 'revild' ) . '</h4>';
-            $html .= '<ul>' . self::lines_to_li( $cons_text ) . '</ul>';
-            $html .= '</div>';
+            $cons_html = '<div class="revild-cons">'
+                . '<h4 class="revild-cons-title">' . esc_html__( '気になる点', 'revild' ) . '</h4>'
+                . '<ul>' . self::lines_to_li( $cons_text ) . '</ul>'
+                . '</div>';
+            $show_cons = true;
+        }
+
+        // 表示項目が0件ならボックス自体を出力しない
+        if ( empty( $header_parts ) && ! $show_pros && ! $show_cons ) {
+            return $content;
+        }
+
+        // --- HTML 組み立て ---
+        $html = '<div class="revild-review-box">';
+
+        if ( ! empty( $header_parts ) ) {
+            $html .= '<div class="revild-review-header">' . implode( '', $header_parts ) . '</div>';
+        }
+
+        if ( $show_pros || $show_cons ) {
+            $html .= '<div class="revild-pros-cons">' . $pros_html . $cons_html . '</div>';
         }
 
         $html .= '</div>';
 
         return $html . $content;
-    }
-
-    public function output_style(): void {
-        if ( is_admin() || ! is_singular() ) {
-            return;
-        }
-
-        $post_id = get_queried_object_id();
-        $name    = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
-        $rating  = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
-
-        if ( $name === '' || $rating === '' ) {
-            return;
-        }
-        ?>
-        <style>
-            .revild-review-box{margin:0 0 1.5em;padding:1em 1.2em;border:1px solid rgba(0,0,0,.1);border-radius:10px;background:#fafafa}
-            .revild-product-name{font-size:1.1em;font-weight:700;margin-bottom:.4em}
-            .revild-brand,.revild-model{font-size:.9em;color:#555;margin-bottom:.2em}
-            .revild-rating{display:flex;flex-wrap:wrap;align-items:center;gap:.4em;margin:.6em 0}
-            .revild-stars{display:inline-flex;align-items:center;gap:1px;line-height:1}
-            .revild-star{display:inline-block;vertical-align:middle}
-            .revild-rating-value{font-weight:700;color:#d56e0c}
-            .revild-pros,.revild-cons{margin:.6em 0 0}
-            .revild-pros h4,.revild-cons h4{margin:0 0 .3em;font-size:.95em}
-            .revild-pros ul,.revild-cons ul{margin:0;padding-left:1.3em}
-            .revild-pros li,.revild-cons li{margin:.15em 0}
-        </style>
-        <?php
     }
 
     public static function count_lines( string $text ): int {

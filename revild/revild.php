@@ -3,7 +3,7 @@
  * Plugin Name: ReviLD
  * Plugin URI:
  * Description: レビュー記事に Product + Review 構造化データ（JSON-LD）を出力するプラグイン
- * Version:     1.1.0
+ * Version:     1.1.1
  * Author:      4536
  * License:     GPL-2.0-or-later
  * Text Domain: revild
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'REVILD_VERSION', '1.1.0' );
+define( 'REVILD_VERSION', '1.1.1' );
 define( 'REVILD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'REVILD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
