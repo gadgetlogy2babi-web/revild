@@ -13,15 +13,46 @@ class Revild_Meta_Box {
     public const META_PROS   = 'review_pros';
     public const META_CONS   = 'review_cons';
 
+    // 表示トグル
+    public const META_SHOW_NAME   = 'revild_show_name';
+    public const META_SHOW_BRAND  = 'revild_show_brand';
+    public const META_SHOW_MODEL  = 'revild_show_model';
+    public const META_SHOW_RATING = 'revild_show_rating';
+    public const META_SHOW_PROS   = 'revild_show_pros';
+    public const META_SHOW_CONS   = 'revild_show_cons';
+
+    // 記事単位の JSON-LD 停止トグル
+    public const META_DISABLE_JSONLD = 'revild_disable_jsonld';
+
+    /** デフォルト表示設定 */
+    public const SHOW_DEFAULTS = [
+        'revild_show_name'   => '0',
+        'revild_show_brand'  => '0',
+        'revild_show_model'  => '0',
+        'revild_show_rating' => '1',
+        'revild_show_pros'   => '1',
+        'revild_show_cons'   => '1',
+    ];
+
     public function __construct() {
         add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ] );
         add_action( 'save_post', [ $this, 'save_post_meta' ], 10, 2 );
     }
 
-    public function add_meta_box(): void {
-        $post_types = [ 'post', 'page' ];
+    public static function is_shown( int $post_id, string $meta_key ): bool {
+        $value = get_post_meta( $post_id, $meta_key, true );
+        if ( $value === '' ) {
+            return ( self::SHOW_DEFAULTS[ $meta_key ] ?? '0' ) === '1';
+        }
+        return $value === '1';
+    }
 
-        foreach ( $post_types as $type ) {
+    public static function is_jsonld_disabled( int $post_id ): bool {
+        return get_post_meta( $post_id, self::META_DISABLE_JSONLD, true ) === '1';
+    }
+
+    public function add_meta_box(): void {
+        foreach ( [ 'post', 'page' ] as $type ) {
             add_meta_box(
                 'revild_review',
                 __( 'レビュー', 'revild' ),
@@ -42,10 +73,9 @@ class Revild_Meta_Box {
         $model  = get_post_meta( $post->ID, self::META_MODEL, true );
         $pros   = get_post_meta( $post->ID, self::META_PROS, true );
         $cons   = get_post_meta( $post->ID, self::META_CONS, true );
+
+        $disable_jsonld = self::is_jsonld_disabled( $post->ID );
         ?>
-        <p><small>
-            <?php esc_html_e( '良い点/気になる点は JSON-LD に含まれますが記事本文には自動表示されません。', 'revild' ); ?>
-        </small></p>
 
         <p>
             <label for="revild_name"><?php esc_html_e( 'レビュー対象（必須）', 'revild' ); ?></label><br>
@@ -86,6 +116,47 @@ class Revild_Meta_Box {
             <label for="revild_cons"><?php esc_html_e( '気になる点（任意：1行1項目）', 'revild' ); ?></label><br>
             <textarea id="revild_cons" name="revild_cons" rows="4" style="width:100%;" placeholder="<?php esc_attr_e( "例：\n価格が高い\nケースが大きめ", 'revild' ); ?>"><?php echo esc_textarea( $cons ); ?></textarea>
         </p>
+
+        <p style="background:#f0f6fc;padding:6px 8px;border-radius:4px;margin:4px 0 0;">
+            <small><?php esc_html_e( 'ℹ 良い点・気になる点は合計2項目以上でJSON-LDに反映されます。', 'revild' ); ?></small>
+        </p>
+
+        <hr style="margin:10px 0;">
+
+        <p><strong><?php esc_html_e( '表示設定', 'revild' ); ?></strong></p>
+        <p><small><?php esc_html_e( 'レビューボックスに表示する項目を選択してください。', 'revild' ); ?></small></p>
+
+        <?php
+        $toggles = [
+            self::META_SHOW_NAME   => __( '商品名', 'revild' ),
+            self::META_SHOW_BRAND  => __( 'ブランド名', 'revild' ),
+            self::META_SHOW_MODEL  => __( '型番・モデル', 'revild' ),
+            self::META_SHOW_RATING => __( '評価（星）', 'revild' ),
+            self::META_SHOW_PROS   => __( '良い点', 'revild' ),
+            self::META_SHOW_CONS   => __( '気になる点', 'revild' ),
+        ];
+
+        foreach ( $toggles as $key => $label ) :
+            $checked = self::is_shown( $post->ID, $key );
+            ?>
+            <label style="display:block;margin:2px 0;">
+                <input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="0" />
+                <input type="checkbox" name="<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $checked ); ?> />
+                <?php echo esc_html( $label ); ?>
+            </label>
+        <?php endforeach; ?>
+
+        <p style="background:#f0f6fc;padding:6px 8px;border-radius:4px;margin:8px 0 0;">
+            <small><?php esc_html_e( 'ℹ レビューボックスで非表示にした項目も、JSON-LDには出力されます。Googleのガイドラインでは、JSON-LDの内容がページ上のどこかに表示されている必要があります。記事本文に該当する情報が含まれていることを確認してください。', 'revild' ); ?></small>
+        </p>
+
+        <hr style="margin:10px 0;">
+
+        <label style="display:block;margin:4px 0;">
+            <input type="hidden" name="revild_disable_jsonld" value="0" />
+            <input type="checkbox" name="revild_disable_jsonld" value="1" <?php checked( $disable_jsonld ); ?> />
+            <?php esc_html_e( 'この記事の JSON-LD 出力を停止する', 'revild' ); ?>
+        </label>
         <?php
     }
 
@@ -106,6 +177,7 @@ class Revild_Meta_Box {
             return;
         }
 
+        // テキストフィールド
         $fields = [
             'revild_name'   => [ 'meta' => self::META_NAME,   'sanitize' => 'sanitize_text_field' ],
             'revild_brand'  => [ 'meta' => self::META_BRAND,  'sanitize' => 'sanitize_text_field' ],
@@ -119,7 +191,7 @@ class Revild_Meta_Box {
             $value !== '' ? update_post_meta( $post_id, $info['meta'], $value ) : delete_post_meta( $post_id, $info['meta'] );
         }
 
-        // Rating requires validation
+        // Rating
         $rating_raw = isset( $_POST['revild_rating'] ) ? wp_unslash( $_POST['revild_rating'] ) : '';
         $review_rating = 0.0;
 
@@ -136,5 +208,24 @@ class Revild_Meta_Box {
         $review_rating > 0
             ? update_post_meta( $post_id, self::META_RATING, (string) $review_rating )
             : delete_post_meta( $post_id, self::META_RATING );
+
+        // 表示トグル
+        $toggle_keys = [
+            self::META_SHOW_NAME,
+            self::META_SHOW_BRAND,
+            self::META_SHOW_MODEL,
+            self::META_SHOW_RATING,
+            self::META_SHOW_PROS,
+            self::META_SHOW_CONS,
+        ];
+
+        foreach ( $toggle_keys as $key ) {
+            $value = isset( $_POST[ $key ] ) ? sanitize_text_field( $_POST[ $key ] ) : '0';
+            update_post_meta( $post_id, $key, $value === '1' ? '1' : '0' );
+        }
+
+        // JSON-LD 停止トグル
+        $disable = isset( $_POST['revild_disable_jsonld'] ) ? sanitize_text_field( $_POST['revild_disable_jsonld'] ) : '0';
+        update_post_meta( $post_id, self::META_DISABLE_JSONLD, $disable === '1' ? '1' : '0' );
     }
 }

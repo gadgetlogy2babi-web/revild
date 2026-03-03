@@ -3,7 +3,7 @@
  * Plugin Name: ReviLD
  * Plugin URI:
  * Description: レビュー記事に Product + Review 構造化データ（JSON-LD）を出力するプラグイン
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      4536
  * License:     GPL-2.0-or-later
  * Text Domain: revild
@@ -16,13 +16,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'REVILD_VERSION', '1.0.0' );
+define( 'REVILD_VERSION', '1.1.0' );
 define( 'REVILD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'REVILD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 require_once REVILD_PLUGIN_DIR . 'includes/class-conflict-detector.php';
 require_once REVILD_PLUGIN_DIR . 'includes/class-meta-box.php';
 require_once REVILD_PLUGIN_DIR . 'includes/class-schema-output.php';
+require_once REVILD_PLUGIN_DIR . 'includes/class-review-box.php';
 
 // --- Auto-update via GitHub Releases ---
 require_once REVILD_PLUGIN_DIR . 'vendor/plugin-update-checker/plugin-update-checker.php';
@@ -41,10 +42,8 @@ add_action( 'init', function () {
     $conflict_detector = new Revild_Conflict_Detector();
 
     new Revild_Meta_Box();
-
-    if ( ! $conflict_detector->has_conflict() ) {
-        new Revild_Schema_Output();
-    }
+    new Revild_Review_Box();
+    new Revild_Schema_Output();
 
     $conflict_detector->register_admin_notice();
 } );

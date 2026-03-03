@@ -42,6 +42,10 @@ class Revild_Conflict_Detector {
         return $this->conflicts;
     }
 
+    /**
+     * 警告のみ表示（自動停止はしない）。
+     * 記事単位の停止は Meta Box の「JSON-LD 出力を停止する」トグルで制御。
+     */
     public function register_admin_notice(): void {
         if ( ! $this->has_conflict() ) {
             return;
@@ -52,7 +56,7 @@ class Revild_Conflict_Detector {
             echo '<div class="notice notice-warning"><p>';
             printf(
                 /* translators: %s: detected plugin names */
-                esc_html__( '⚠️ %s を検出したため、ReviLD の Product スキーマ出力を停止しています。', 'revild' ),
+                esc_html__( '⚠️ %s を検出しました。Product スキーマが重複出力される可能性があります。重複する記事では、ReviLD メタボックスの「JSON-LD 出力を停止する」をONにしてください。', 'revild' ),
                 $names
             );
             echo '</p></div>';

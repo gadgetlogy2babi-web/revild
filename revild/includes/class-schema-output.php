@@ -17,6 +17,11 @@ class Revild_Schema_Output {
 
         $post_id = get_queried_object_id();
 
+        // 記事単位の停止トグル
+        if ( Revild_Meta_Box::is_jsonld_disabled( $post_id ) ) {
+            return;
+        }
+
         $name   = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
         $rating = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
 
@@ -90,16 +95,21 @@ class Revild_Schema_Output {
             $review['dateModified'] = (string) $date_modified;
         }
 
-        // positiveNotes / negativeNotes: 入力があれば常に含める
-        $positive = $this->lines_to_itemlist( $pros );
-        $negative = $this->lines_to_itemlist( $cons );
+        // positiveNotes / negativeNotes: 合計2項目以上の場合のみ含める
+        $pros_count = Revild_Review_Box::count_lines( (string) $pros );
+        $cons_count = Revild_Review_Box::count_lines( (string) $cons );
 
-        if ( $positive ) {
-            $review['positiveNotes'] = $positive;
-        }
+        if ( ( $pros_count + $cons_count ) >= 2 ) {
+            $positive = $this->lines_to_itemlist( (string) $pros );
+            $negative = $this->lines_to_itemlist( (string) $cons );
 
-        if ( $negative ) {
-            $review['negativeNotes'] = $negative;
+            if ( $positive ) {
+                $review['positiveNotes'] = $positive;
+            }
+
+            if ( $negative ) {
+                $review['negativeNotes'] = $negative;
+            }
         }
 
         $data['review'] = $review;
