@@ -16,12 +16,13 @@ class Revild_Settings {
         'show_pros'             => true,
         'show_cons'             => true,
         'insert_position'       => 'before',
-        'show_conflict_warning' => true,
+        'custom_css'            => '',
     ];
 
     public function __construct() {
         add_action( 'admin_menu', [ $this, 'add_page' ] );
         add_action( 'admin_init', [ $this, 'register' ] );
+        add_action( 'wp_head', [ $this, 'output_custom_css' ], 100 );
     }
 
     public static function get( ?string $key = null ) {
@@ -72,10 +73,17 @@ class Revild_Settings {
             'revild_position'
         );
 
-        // --- 競合検知 ---
-        add_settings_section( 'revild_conflict', __( '競合検知', 'revild' ), '__return_false', 'revild' );
+        // --- カスタムCSS ---
+        add_settings_section( 'revild_custom_css', __( 'カスタムCSS', 'revild' ), '__return_false', 'revild' );
 
-        $this->add_checkbox( 'show_conflict_warning', __( '競合プラグイン検出時に警告を表示する', 'revild' ), 'revild_conflict' );
+        add_settings_field(
+            'revild_custom_css',
+            __( 'カスタムCSS', 'revild' ),
+            [ $this, 'render_custom_css_field' ],
+            'revild',
+            'revild_custom_css'
+        );
+
     }
 
     private function add_checkbox( string $key, string $label, string $section, string $description = '' ): void {
@@ -112,15 +120,55 @@ class Revild_Settings {
         <?php
     }
 
+    public function render_custom_css_field(): void {
+        $css = self::get( 'custom_css' );
+        ?>
+        <textarea name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_css]" rows="10" style="width:100%;font-family:monospace;"><?php echo esc_textarea( $css ); ?></textarea>
+        <p class="description"><?php esc_html_e( 'レビューボックスのデザインを変更できます。プラグインのCSSを上書きする形で適用されます。', 'revild' ); ?></p>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:#666;font-size:13px;"><?php esc_html_e( '利用可能なクラス一覧', 'revild' ); ?></summary>
+            <pre style="background:#f6f7f7;padding:10px;margin-top:4px;font-size:12px;line-height:1.8;"><code>.revild-review-box … <?php esc_html_e( '外枠', 'revild' ); ?>
+
+.revild-review-header … <?php esc_html_e( '商品名・評価エリア', 'revild' ); ?>
+
+.revild-product-name … <?php esc_html_e( '商品名', 'revild' ); ?>
+
+.revild-meta … <?php esc_html_e( 'ブランド / 型番', 'revild' ); ?>
+
+.revild-rating … <?php esc_html_e( '評価', 'revild' ); ?>
+
+.revild-stars … <?php esc_html_e( '星', 'revild' ); ?>
+
+.revild-rating-value … <?php esc_html_e( '評価の数値', 'revild' ); ?>
+
+.revild-pros-cons … <?php esc_html_e( '良い点・気になる点のコンテナ', 'revild' ); ?>
+
+.revild-pros … <?php esc_html_e( '良い点', 'revild' ); ?>
+
+.revild-cons … <?php esc_html_e( '気になる点', 'revild' ); ?></code></pre>
+        </details>
+        <?php
+    }
+
+    public function output_custom_css(): void {
+        $css = self::get( 'custom_css' );
+        if ( $css === '' ) {
+            return;
+        }
+        echo '<style id="revild-custom-css">' . wp_strip_all_tags( $css ) . '</style>' . "\n";
+    }
+
     public function sanitize( $input ): array {
         $out = [];
 
-        $bools = [ 'show_review_box', 'show_product_name', 'show_meta', 'show_rating', 'show_pros', 'show_cons', 'show_conflict_warning' ];
+        $bools = [ 'show_review_box', 'show_product_name', 'show_meta', 'show_rating', 'show_pros', 'show_cons' ];
         foreach ( $bools as $key ) {
             $out[ $key ] = ! empty( $input[ $key ] );
         }
 
         $out['insert_position'] = ( isset( $input['insert_position'] ) && $input['insert_position'] === 'after' ) ? 'after' : 'before';
+
+        $out['custom_css'] = isset( $input['custom_css'] ) ? wp_strip_all_tags( $input['custom_css'] ) : '';
 
         return $out;
     }

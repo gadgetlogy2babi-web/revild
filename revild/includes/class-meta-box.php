@@ -15,7 +15,6 @@ class Revild_Meta_Box {
 
     // 記事個別の表示上書き
     public const META_HAS_OVERRIDE   = 'revild_has_override';
-    public const META_SHOW_BOX       = 'revild_show_review_box';
     public const META_SHOW_NAME      = 'revild_show_name';
     public const META_SHOW_META      = 'revild_show_meta';
     public const META_SHOW_RATING    = 'revild_show_rating';
@@ -25,7 +24,6 @@ class Revild_Meta_Box {
 
     /** 表示トグルのメタキー → グローバル設定キー の対応 */
     private const TOGGLE_MAP = [
-        'revild_show_review_box' => 'show_review_box',
         'revild_show_name'       => 'show_product_name',
         'revild_show_meta'       => 'show_meta',
         'revild_show_rating'     => 'show_rating',
@@ -139,7 +137,6 @@ class Revild_Meta_Box {
 
         <?php
         $toggles = [
-            self::META_SHOW_BOX    => __( 'レビューボックスを表示', 'revild' ),
             self::META_SHOW_NAME   => __( '商品名', 'revild' ),
             self::META_SHOW_META   => __( 'ブランド名 / 型番', 'revild' ),
             self::META_SHOW_RATING => __( '評価（星）', 'revild' ),
@@ -163,6 +160,9 @@ class Revild_Meta_Box {
         <p style="background:#f0f6fc;padding:6px 8px;border-radius:4px;margin:4px 0 0;">
             <small><?php esc_html_e( 'ℹ レビューボックスで非表示にした項目も、JSON-LDには出力されます。Googleのガイドラインでは、JSON-LDの内容がページ上のどこかに表示されている必要があります。記事本文に該当する情報が含まれていることを確認してください。', 'revild' ); ?></small>
         </p>
+        <p style="color:#666;font-size:12px;margin:8px 0 0;">
+            <?php esc_html_e( '💡 ショートコード [revild] を本文中に記述すると、好きな位置にレビューボックスを表示できます。ショートコードを使用した場合、自動挿入は無効になります。', 'revild' ); ?>
+        </p>
 
         <?php if ( $has_override ) : ?>
         <p style="margin:8px 0 0;">
@@ -183,6 +183,21 @@ class Revild_Meta_Box {
         <?php endif; ?>
 
         <hr style="margin:10px 0;">
+
+        <?php
+        $conflict_source = Revild_Conflict_Detector::get_stored_conflict( $post->ID );
+        if ( $conflict_source !== '' ) :
+        ?>
+        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:8px 10px;border-radius:2px;margin:0 0 8px;font-size:12px;">
+            <?php
+            printf(
+                /* translators: %s: plugin name that outputs conflicting schema */
+                esc_html__( '⚠️ %s が Product スキーマを出力しているため、ReviLD の JSON-LD 出力を自動停止しました。', 'revild' ),
+                esc_html( $conflict_source )
+            );
+            ?>
+        </div>
+        <?php endif; ?>
 
         <label style="display:block;margin:4px 0;">
             <input type="hidden" name="revild_disable_jsonld" value="0" />

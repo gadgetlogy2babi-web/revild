@@ -1,10 +1,11 @@
 <?php
 /**
  * Plugin Name: ReviLD
- * Plugin URI:
+ * Plugin URI:  https://shikamori-p.com/blog/revild/
  * Description: レビュー記事に Product + Review 構造化データ（JSON-LD）を出力するプラグイン
- * Version:     1.1.0
- * Author:      4536
+ * Version:     1.1.1
+ * Author:      gadgetlogy
+ * Author URI:  https://shikamori-p.com/
  * License:     GPL-2.0-or-later
  * Text Domain: revild
  * Domain Path: /languages
@@ -16,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'REVILD_VERSION', '1.1.0' );
+define( 'REVILD_VERSION', '1.1.1' );
 define( 'REVILD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'REVILD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -46,7 +47,5 @@ add_action( 'init', function () {
 
     new Revild_Meta_Box();
     new Revild_Review_Box();
-    new Revild_Schema_Output();
-
-    $conflict_detector->register_admin_notice();
+    new Revild_Schema_Output( $conflict_detector );
 } );

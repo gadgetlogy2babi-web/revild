@@ -6,8 +6,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Revild_Schema_Output {
 
-    public function __construct() {
-        add_action( 'wp_head', [ $this, 'output_jsonld' ] );
+    private Revild_Conflict_Detector $conflict_detector;
+
+    public function __construct( Revild_Conflict_Detector $conflict_detector ) {
+        $this->conflict_detector = $conflict_detector;
+        add_action( 'wp_head', [ $this, 'output_jsonld' ], 9999 );
     }
 
     public function output_jsonld(): void {
@@ -19,6 +22,11 @@ class Revild_Schema_Output {
 
         // 記事単位の停止トグル
         if ( Revild_Meta_Box::is_jsonld_disabled( $post_id ) ) {
+            return;
+        }
+
+        // 他プラグインが Product/Review JSON-LD を出力済みなら停止
+        if ( $this->conflict_detector->has_conflict() ) {
             return;
         }
 

@@ -8,6 +8,7 @@ class Revild_Review_Box {
 
     public function __construct() {
         add_filter( 'the_content', [ $this, 'insert_review_box' ], 1000 );
+        add_shortcode( 'revild', [ $this, 'shortcode_revild' ] );
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_style' ] );
     }
 
@@ -45,23 +46,66 @@ class Revild_Review_Box {
             return $content;
         }
 
-        $post_id = get_queried_object_id();
-
-        // レビューボックス表示トグル
-        if ( ! Revild_Meta_Box::is_shown( $post_id, Revild_Meta_Box::META_SHOW_BOX ) ) {
+        // ショートコード [revild] が本文にある場合は自動挿入をスキップ
+        $post = get_queried_object();
+        if ( $post instanceof \WP_Post && has_shortcode( $post->post_content, 'revild' ) ) {
             return $content;
+        }
+
+        $post_id = get_queried_object_id();
+        $html    = $this->build_review_box_html( $post_id );
+
+        if ( $html === '' ) {
+            return $content;
+        }
+
+        // 挿入位置
+        $position = Revild_Settings::get( 'insert_position' );
+        if ( $position === 'after' ) {
+            return $content . $html;
+        }
+        return $html . $content;
+    }
+
+    /**
+     * ショートコード [revild] のハンドラ
+     */
+    public function shortcode_revild(): string {
+        if ( is_admin() || is_feed() || ! is_singular() ) {
+            return '';
+        }
+
+        $post_id = get_queried_object_id();
+        $name    = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
+        $rating  = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
+
+        // レビューデータがない場合はショートコードをそのまま表示
+        if ( $name === '' || $rating === '' ) {
+            return '[revild]';
+        }
+
+        return $this->build_review_box_html( $post_id );
+    }
+
+    /**
+     * レビューボックスのHTMLを組み立てる
+     */
+    private function build_review_box_html( int $post_id ): string {
+        // グローバルの一括OFFスイッチ
+        if ( ! Revild_Settings::get( 'show_review_box' ) ) {
+            return '';
         }
 
         $name   = get_post_meta( $post_id, Revild_Meta_Box::META_NAME, true );
         $rating = get_post_meta( $post_id, Revild_Meta_Box::META_RATING, true );
 
         if ( $name === '' || $rating === '' ) {
-            return $content;
+            return '';
         }
 
         $rating_f = is_numeric( $rating ) ? (float) $rating : 0.0;
         if ( $rating_f <= 0.0 ) {
-            return $content;
+            return '';
         }
 
         $brand     = get_post_meta( $post_id, Revild_Meta_Box::META_BRAND, true );
@@ -118,7 +162,7 @@ class Revild_Review_Box {
 
         // 表示項目が0件なら出力しない
         if ( empty( $header_parts ) && ! $show_pros && ! $show_cons ) {
-            return $content;
+            return '';
         }
 
         // --- compact 判定 ---
@@ -156,12 +200,7 @@ class Revild_Review_Box {
 
         $html .= '</div>';
 
-        // 挿入位置
-        $position = Revild_Settings::get( 'insert_position' );
-        if ( $position === 'after' ) {
-            return $content . $html;
-        }
-        return $html . $content;
+        return $html;
     }
 
     // ========== ユーティリティ ==========
